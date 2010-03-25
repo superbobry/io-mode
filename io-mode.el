@@ -4,7 +4,7 @@
 
 ;; Version 0.1
 ;; Keywords: io major mode
-;; Author: Sergei Lebedeb <superbobry@gmail.com>
+;; Author: Sergei Lebedev <superbobry@gmail.com>
 ;; URL: http://bitbucket.com/bobry/io-mode
 
 ;; This file is not part of GNU Emacs.
@@ -47,7 +47,7 @@
 
 ;;; TODO:
 
-;; - intepreter integration
+;; - proper normilization
 ;; - modify-syntax-entry for comments and strings
 ;; - replace ugly regexp with (rx ) macros?
 ;; - comment-dwim (and more inteligent comment handling)
@@ -55,6 +55,7 @@
 ;;; Code:
 
 (require 'font-lock)
+(require 'comint)
 (require 'cl)
 
 ;;
@@ -83,6 +84,11 @@
   :type 'integer
   :group 'io)
 
+(defcustom io-command "io"
+  "The Io command used for evaluating code. Must be in your path."
+  :type 'string
+  :group 'io)
+
 (defvar io-mode-hook nil
   "A hook for you to run your own code when the mode is loaded.")
 
@@ -104,6 +110,66 @@
   `(buffer-substring (point-at-bol) (point-at-eol)))
 
 ;;
+;; REPL
+;;
+
+(defun io-normalize-sexp (str)
+  "Normalize a given Io code string, removing all newline characters."
+  ;; Oddly enough Io interpreter doesn't allow newlines anywhere,
+  ;; including multiline strings and method calls, we need to make
+  ;; a flat string from a code block, before it's passed to the
+  ;; interpreter. Obviously, this isn't a good solution, since
+  ;;   a := """Cool multiline
+  ;;   string!"""
+  ;; would become
+  ;;   a := """Cool multiline string!"""
+  ;; ...
+  (while (string-match "([^)]*?[\r\n][^)]*?)" str)
+    (setq matched (substring str
+                             (match-beginning 0)
+                             (match-end 0))
+          ;; Replacing newlines inside parenthesis with whitespaces...
+          str (replace-match (replace-regexp-in-string "[\r\n]+" " " matched)
+                             nil nil str)))
+  ;; ...and newlines between expressions with semicolons.
+  (replace-regexp-in-string "[\r\n]+" "; " str))
+
+(defun io-repl ()
+  "Launch an Io REPL using `io-command' as an inferior mode."
+  (interactive)
+  (let ((io-repl-buffer (get-buffer "*Io*")))
+    (unless (comint-check-proc io-repl-buffer)
+      (setq io-repl-buffer
+            (apply 'make-comint "Io" io-command nil)))
+    (pop-to-buffer io-repl-buffer)))
+
+(defun io-repl-sexp (str)
+  "Send the expression to an Io REPL."
+  (interactive "sExpression: ")
+  (let ((io-repl-buffer (io-repl)))
+    (save-current-buffer
+      (set-buffer io-repl-buffer)
+      (comint-goto-process-mark)
+      (insert (io-normalize-sexp str))
+      ;; Probably ARTIFICIAL value should be made an option,
+      ;; like `io-repl-display-sent'.
+      (comint-send-input))))
+
+(defun io-repl-sregion (beg end)
+  "Send the region to an Io REPL."
+  (interactive "r")
+  (io-repl-sexp (replace-regexp-in-string
+                 "(\\.+)+" ""
+                 (buffer-substring beg end)
+                 nil nil "\n")))
+
+(defun io-repl-sbuffer ()
+  "Send the content of the buffer to an Io REPL."
+  (interactive)
+  (io-repl-sregion (point-min) (point-max)))
+
+
+;;
 ;; Define Language Syntax
 ;;
 
@@ -117,43 +183,40 @@
      "<<" ">" "<" "<=" ">=" "==" "!=" "&"
      "^" ".." "|" "&&" "||" "!=" "+=" "-="
      "*=" "/=" "<<=" ">>=" "&=" "|=" "%="
-     "=" ":=" "<-" "<->" "->")
-   t))
+     "=" ":=" "<-" "<->" "->")))
 
 ;; Booleans
 (defvar io-boolean-regexp "\\b\\(true\\|false\\|nil\\)\\b")
 
 ;; Prototypes
 (defvar io-prototypes-regexp
-  (format "\\<%s\\>"
-          (regexp-opt
-           '("Array" "Block" "Box" "Buffer" "CFunction"
-             "Date" "Error" "File" "Importer" "List" "Lobby"
-             "Locals" "Map" "Message" "Number" "Object"
-             "Protos" "Regex" "String" "WeakLink")
-           t)))
+  (regexp-opt
+   '("Array" "Block" "Box" "Buffer" "CFunction"
+     "Date" "Error" "File" "Importer" "List" "Lobby"
+     "Locals" "Map" "Message" "Number" "Object"
+     "Protos" "Regex" "String" "WeakLink")
+   'words))
 
 ;; Messages
 (defvar io-messages-regexp
-  (format "\\<%s\\>"
-          (regexp-opt
-           '("activate" "activeCoroCount" "and" "asString"
-             "block" "break" "catch" "clone" "collectGarbage"
-             "compileString" "continue" "do" "doFile" "doMessage"
-             "doString" "else" "elseif" "exit" "for" "foreach"
-             "forward" "getSlot" "getEnvironmentVariable"
-             "hasSlot" "if" "ifFalse" "ifNil" "ifTrue"
-             "isActive" "isNil" "isResumable" "list"
-             "message" "method" "or" "parent" "pass" "pause"
-             "perform" "performWithArgList" "print" "proto"
-             "raise" "raiseResumable" "removeSlot" "resend"
-             "resume" "return" "schedulerSleepSeconds"
-             "self" "sender" "setSchedulerSleepSeconds"
-             "setSlot" "shallowCopy" "slotNames" "super"
-             "system" "then" "thisBlock" "thisContext"
-             "thisMessage" "try" "type" "uniqueId" "updateSlot"
-             "wait" "while" "write" "yield")
-           t)))
+  (regexp-opt
+   '("activate" "activeCoroCount" "and" "asString"
+     "block" "break" "catch" "clone" "collectGarbage"
+     "compileString" "continue" "do" "doFile" "doMessage"
+     "doString" "else" "elseif" "exit" "for" "foreach"
+     "forward" "getSlot" "getEnvironmentVariable"
+     "hasSlot" "if" "ifFalse" "ifNil" "ifTrue"
+     "isActive" "isNil" "isResumable" "list"
+     "message" "method" "or" "parent" "pass" "pause"
+     "perform" "performWithArgList" "print" "proto"
+     "raise" "raiseResumable" "removeSlot" "resend"
+     "resume" "return" "schedulerSleepSeconds"
+     "self" "sender" "setSchedulerSleepSeconds"
+     "setSlot" "shallowCopy" "slotNames" "super"
+     "system" "then" "thisBlock" "thisContext"
+     "thisMessage" "try" "type" "uniqueId" "updateSlot"
+     "wait" "while" "write" "yield")
+   'words))
 
 ;; Comments
 (defvar io-comments-regexp "\\(\\(#\\|//\\).*$\\|/\\*\\(.\\|[\r\n]\\)*?\\*/\\)")
@@ -209,7 +272,7 @@
           (delete-region (point-at-bol) (point)))))))
 
 (defun io-previous-indent ()
-  "Return the indentation level of the previous non-blank line."
+  "Returns the indentation level of the previous non-blank line."
   (save-excursion
     (forward-line -1)
     (if (bobp)
@@ -270,7 +333,10 @@
   "io-mode"
   "Major mode for editing Io language..."
 
-  (define-key io-mode-map (kbd "\C-m") 'io-newline-and-indent)
+  (define-key io-mode-map (kbd "C-m") 'io-newline-and-indent)
+  (define-key io-mode-map (kbd "C-c C-c") 'io-repl-sbuffer)
+  (define-key io-mode-map (kbd "C-c C-r") 'io-repl-sregion)
+  (define-key io-mode-map (kbd "C-c C-e") 'io-repl-sexp)
 
   ;; code for syntax highlighting
   (setq font-lock-defaults '((io-font-lock-keywords)))
