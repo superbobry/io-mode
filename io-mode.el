@@ -54,9 +54,9 @@
 
 ;;; Code:
 
-(require 'font-lock)
 (require 'comint)
 (require 'cl)
+(require 'font-lock)
 
 ;;
 ;; Customizable Variables
@@ -115,7 +115,7 @@
 
 (defun io-normalize-sexp (str)
   "Normalize a given Io code string, removing all newline characters."
-  ;; Oddly enough Io interpreter doesn't allow newlines anywhere,
+  ;; Oddly enough, Io interpreter doesn't allow newlines anywhere,
   ;; including multiline strings and method calls, we need to make
   ;; a flat string from a code block, before it's passed to the
   ;; interpreter. Obviously, this isn't a good solution, since
@@ -124,15 +124,16 @@
   ;; would become
   ;;   a := """Cool multiline string!"""
   ;; ...
-  (while (string-match "([^)]*?[\r\n][^)]*?)" str)
-    (setq matched (substring str
-                             (match-beginning 0)
-                             (match-end 0))
-          ;; Replacing newlines inside parenthesis with whitespaces...
-          str (replace-match (replace-regexp-in-string "[\r\n]+" " " matched)
-                             nil nil str)))
-  ;; ...and newlines between expressions with semicolons.
-  (replace-regexp-in-string "[\r\n]+" "; " str))
+  (replace-regexp-in-string
+   ;; ... and finally strip the remaining newlines.
+   "[\r\n]+" "; " (replace-regexp-in-string
+                   ;; ... then strip multiple whitespaces ...
+                   "\s+" " "
+                   (replace-regexp-in-string
+                    ;; This should really be read bottom-up, start by removing
+                    ;; all newline characters near brackets and comas ...
+                    "\\([(,]\\)[\n\r\s]+\\|[\n\r\s]+\\()\\)" "\\1\\2"
+                    str))))
 
 (defun io-repl ()
   "Launch an Io REPL using `io-command' as an inferior mode."
