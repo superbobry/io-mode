@@ -130,10 +130,12 @@
                    ;; ... then strip multiple whitespaces ...
                    "\s+" " "
                    (replace-regexp-in-string
-                    ;; This should really be read bottom-up, start by removing
-                    ;; all newline characters near brackets and comas ...
+                    ;; ... then remove all newline characters near brackets
+                    ;; and comas ...
                     "\\([(,]\\)[\n\r\s]+\\|[\n\r\s]+\\()\\)" "\\1\\2"
-                    str))))
+                    ;; This should really be read bottom-up, start by removing
+                    ;; all comments ...
+                    (replace-regexp-in-string io-comments-regexp "" str)))))
 
 (defun io-repl ()
   "Launch an Io REPL using `io-command' as an inferior mode."
@@ -159,10 +161,7 @@
 (defun io-repl-sregion (beg end)
   "Send the region to an Io REPL."
   (interactive "r")
-  (io-repl-sexp (replace-regexp-in-string
-                 "(\\.+)+" ""
-                 (buffer-substring beg end)
-                 nil nil "\n")))
+  (io-repl-sexp (buffer-substring beg end)))
 
 (defun io-repl-sbuffer ()
   "Send the content of the buffer to an Io REPL."
@@ -285,7 +284,7 @@
 (defun io-line-empty-p ()
   "Is this line empty? Returns non-nil if so, nil if not."
   (or (bobp)
-      (string-match "^\\s *$" (io-line-as-string))))
+      (string-match "^\\ s*$" (io-line-as-string))))
 
 (defun io-newline-and-indent ()
   "Inserts a newline and indents it to the same level as the previous line."
@@ -335,6 +334,7 @@
   "Major mode for editing Io language..."
 
   (define-key io-mode-map (kbd "C-m") 'io-newline-and-indent)
+  (define-key io-mode-map (kbd "C-c C-s") 'io-repl)
   (define-key io-mode-map (kbd "C-c C-c") 'io-repl-sbuffer)
   (define-key io-mode-map (kbd "C-c C-r") 'io-repl-sregion)
   (define-key io-mode-map (kbd "C-c C-e") 'io-repl-sexp)
