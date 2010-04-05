@@ -62,7 +62,6 @@
 (require 'font-lock)
 (require 'hideshow)
 (require 'newcomment)
-(require 'thingatpt)
 
 ;;
 ;; Customizable Variables
@@ -100,10 +99,6 @@
 
 (defvar io-mode-map (make-keymap)
   "Keymap for Io major mode.")
-
-(defvar io-foldable-blocks '("do" "block" "method" "message")
-  "A list of foldable Io constructs (Note: Not implemented yet).
-The actual folding is done using `hs-hide-block' and `hs-show-block' function from `hideshow.el'.")
 
 
 ;;
@@ -247,6 +242,7 @@ The actual folding is done using `hs-hide-block' and `hs-show-block' function fr
   (when io-cleanup-whitespace
     (delete-trailing-whitespace)))
 
+
 ;;
 ;; Indentation
 ;;
@@ -340,7 +336,7 @@ The actual folding is done using `hs-hide-block' and `hs-show-block' function fr
   "Major mode for editing Io language..."
 
   (define-key io-mode-map (kbd "C-m") 'io-newline-and-indent)
-  (define-key io-mode-map (kbd "C-c C-s") 'io-repl)
+  (define-key io-mode-map (kbd "C-c <SPC>") 'io-repl)
   (define-key io-mode-map (kbd "C-c C-c") 'io-repl-sbuffer)
   (define-key io-mode-map (kbd "C-c C-r") 'io-repl-sregion)
   (define-key io-mode-map (kbd "C-c C-e") 'io-repl-sexp)
