@@ -44,19 +44,23 @@
 
 ;; Major thanks to defunkt's coffee-mode, which helped me to get over most
 ;; of the tought parts of writing a major mode.
+;;
+;; Sources:
+;; http://renormalist.net/Renormalist/EmacsLanguageModeCreationTutorial
+;;
 
 ;;; TODO:
 
-;; - proper normilization
-;; - modify-syntax-entry for comments and strings
+;; - proper normilization (probably not an issue, since ReadLine is
+;;   available as an addon)
 ;; - replace ugly regexp with (rx ) macros?
-;; - comment-dwim (and more inteligent comment handling)
 
 ;;; Code:
 
 (require 'comint)
 (require 'cl)
 (require 'font-lock)
+(require 'newcomment)
 
 ;;
 ;; Customizable Variables
@@ -173,8 +177,8 @@
 ;; Define Language Syntax
 ;;
 
-;; Self reference
-(defvar io-self-regexp "\\<self\\>")
+;; Self and call objects are :)
+(defvar io-special-regexp "\\<self\\|thisContext\\|call\\>")
 
 ;; Operators
 (defvar io-operators-regexp
@@ -189,13 +193,7 @@
 (defvar io-boolean-regexp "\\b\\(true\\|false\\|nil\\)\\b")
 
 ;; Prototypes
-(defvar io-prototypes-regexp
-  (regexp-opt
-   '("Array" "Block" "Box" "Buffer" "CFunction"
-     "Date" "Error" "File" "Importer" "List" "Lobby"
-     "Locals" "Map" "Message" "Number" "Object"
-     "Protos" "Regex" "String" "WeakLink")
-   'words))
+(defvar io-prototypes-regexp "\\b[A-Z]+\\w*\\b")
 
 ;; Messages
 (defvar io-messages-regexp
@@ -208,14 +206,13 @@
      "hasSlot" "if" "ifFalse" "ifNil" "ifTrue"
      "isActive" "isNil" "isResumable" "list"
      "message" "method" "or" "parent" "pass" "pause"
-     "perform" "performWithArgList" "print" "proto"
-     "raise" "raiseResumable" "removeSlot" "resend"
-     "resume" "return" "schedulerSleepSeconds"
-     "self" "sender" "setSchedulerSleepSeconds"
-     "setSlot" "shallowCopy" "slotNames" "super"
-     "system" "then" "thisBlock" "thisContext"
-     "thisMessage" "try" "type" "uniqueId" "updateSlot"
-     "wait" "while" "write" "yield")
+     "perform" "performOn" "performWithArgList" "print"
+     "println" "proto" "raise" "raiseResumable" "removeSlot"
+     "resend" "resume" "return" "schedulerSleepSeconds"
+     "sender" "setSchedulerSleepSeconds" "setSlot"
+     "shallowCopy" "slotNames" "super" "system"
+     "then" "thisBlock" "thisMessage" "try" "type"
+     "uniqueId" "updateSlot" "wait" "while" "write" "yield")
    'words))
 
 ;; Comments
@@ -225,12 +222,12 @@
 ;; particular face.
 (defvar io-font-lock-keywords
   ;; Note: order here matters!
-  `((,io-self-regexp . font-lock-variable-name-face)
-    (,io-comments-regexp . font-lock-comment-face)
+  `((,io-special-regexp . font-lock-variable-name-face)
     (,io-operators-regexp . font-lock-builtin-face)
     (,io-boolean-regexp . font-lock-constant-face)
     (,io-prototypes-regexp . font-lock-type-face)
-    (,io-messages-regexp . font-lock-keyword-face)))
+    (,io-messages-regexp . font-lock-keyword-face)
+    (,io-comments-regexp . font-lock-comment-face)))
 
 
 ;;
@@ -241,6 +238,7 @@
   "Hook run before file is saved. Deletes whitespace if `io-cleanup-whitespace' is non-nil."
   (when io-cleanup-whitespace
     (delete-trailing-whitespace)))
+
 
 ;;
 ;; Indentation
@@ -338,19 +336,30 @@
   (define-key io-mode-map (kbd "C-c C-c") 'io-repl-sbuffer)
   (define-key io-mode-map (kbd "C-c C-r") 'io-repl-sregion)
   (define-key io-mode-map (kbd "C-c C-e") 'io-repl-sexp)
+  (define-key io-mode-map (kbd "C-c ;") 'comment-dwim)
 
   ;; code for syntax highlighting
-  (setq font-lock-defaults '((io-font-lock-keywords)))
+  (set (make-local-variable 'font-lock-defaults) '((io-font-lock-keywords)))
 
-  (setq comment-start "//")
+  ;; comments
+  ;; a) python style
+  (modify-syntax-entry ?# "< b" io-mode-syntax-table)
+  (modify-syntax-entry ?\n "> b" io-mode-syntax-table)
+  ;; b) c style
+  (modify-syntax-entry ?/ ". 124b" io-mode-syntax-table)
+  (modify-syntax-entry ?* ". 23" io-mode-syntax-table)
+  (modify-syntax-entry ?\n "> b" io-mode-syntax-table)
+
+  (setq comment-start "#"
+        comment-end ""
+        comment-style 'indent)
 
   ;; no tabs
   (setq indent-tabs-mode nil)
 
   ;; indentation
-  (make-local-variable 'indent-line-function)
-  (setq indent-line-function 'io-indent-line
-        io-tab-width tab-width) ;; Just in case...
+  (set (make-local-variable 'indent-line-function) 'io-indent-line)
+  (setq io-tab-width tab-width) ;; Just in case...
 
   ;; hooks
   (set (make-local-variable 'before-save-hook) 'io-before-save))
