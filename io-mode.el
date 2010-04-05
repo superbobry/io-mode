@@ -2,8 +2,8 @@
 
 ;; Copyright (C) 2010 Sergei Lebedev
 
-;; Version 0.1
-;; Keywords: io major mode
+;; Version: 20100405
+;; Keywords: languages, io
 ;; Author: Sergei Lebedev <superbobry@gmail.com>
 ;; URL: http://bitbucket.com/bobry/io-mode
 
@@ -60,13 +60,15 @@
 (require 'comint)
 (require 'cl)
 (require 'font-lock)
+(require 'hideshow)
 (require 'newcomment)
+(require 'thingatpt)
 
 ;;
 ;; Customizable Variables
 ;;
 
-(defconst io-mode-version "0.1"
+(defconst io-mode-version "20100405"
   "The version of this `io-mode'.")
 
 (defgroup io nil
@@ -98,6 +100,10 @@
 
 (defvar io-mode-map (make-keymap)
   "Keymap for Io major mode.")
+
+(defvar io-foldable-blocks '("do" "block" "method" "message")
+  "A list of foldable Io constructs (Note: Not implemented yet).
+The actual folding is done using `hs-hide-block' and `hs-show-block' function from `hideshow.el'.")
 
 
 ;;
@@ -177,32 +183,33 @@
 ;; Define Language Syntax
 ;;
 
-;; Self and call objects are :)
-(defvar io-special-regexp "\\<self\\|thisContext\\|call\\>")
+;; Special? Self and call objects are :)
+(defvar io-special-re "\\<self\\|thisContext\\|call\\>")
 
-;; Operators
-(defvar io-operators-regexp
+;; Operators (not all of them are present in the Io core,
+;; but you can still define them, if you need it)
+(defvar io-operators-re
   (regexp-opt
-   '("++" "--" "*" "/" "%" "^" "+" "-" ">>"
+   '("*" "/" "%" "^" "+" "-" "?" ">>" "++" "--"
      "<<" ">" "<" "<=" ">=" "==" "!=" "&"
      "^" ".." "|" "&&" "||" "!=" "+=" "-="
      "*=" "/=" "<<=" ">>=" "&=" "|=" "%="
      "=" ":=" "<-" "<->" "->")))
 
 ;; Booleans
-(defvar io-boolean-regexp "\\b\\(true\\|false\\|nil\\)\\b")
+(defvar io-boolean-re "\\b\\(true\\|false\\|nil\\)\\b")
 
 ;; Prototypes
-(defvar io-prototypes-regexp "\\b[A-Z]+\\w*\\b")
+(defvar io-prototypes-re "\\b[A-Z]+\\w*\\b")
 
 ;; Messages
-(defvar io-messages-regexp
+(defvar io-messages-re
   (regexp-opt
    '("activate" "activeCoroCount" "and" "asString"
      "block" "break" "catch" "clone" "collectGarbage"
      "compileString" "continue" "do" "doFile" "doMessage"
      "doString" "else" "elseif" "exit" "for" "foreach"
-     "forward" "getSlot" "getEnvironmentVariable"
+     "foreachReversed" "forward" "getSlot" "getEnvironmentVariable"
      "hasSlot" "if" "ifFalse" "ifNil" "ifTrue"
      "isActive" "isNil" "isResumable" "list"
      "message" "method" "or" "parent" "pass" "pause"
@@ -212,22 +219,23 @@
      "sender" "setSchedulerSleepSeconds" "setSlot"
      "shallowCopy" "slotNames" "super" "system"
      "then" "thisBlock" "thisMessage" "try" "type"
-     "uniqueId" "updateSlot" "wait" "while" "write" "yield")
+     "uniqueId" "updateSlot" "wait" "while" "write"
+     "writeln" "yield")
    'words))
 
 ;; Comments
-(defvar io-comments-regexp "\\(\\(#\\|//\\).*$\\|/\\*\\(.\\|[\r\n]\\)*?\\*/\\)")
+(defvar io-comments-re "\\(\\(#\\|//\\).*$\\|/\\*\\(.\\|[\r\n]\\)*?\\*/\\)")
 
 ;; Create the list for font-lock. Each class of keyword is given a
 ;; particular face.
 (defvar io-font-lock-keywords
   ;; Note: order here matters!
-  `((,io-special-regexp . font-lock-variable-name-face)
-    (,io-operators-regexp . font-lock-builtin-face)
-    (,io-boolean-regexp . font-lock-constant-face)
-    (,io-prototypes-regexp . font-lock-type-face)
-    (,io-messages-regexp . font-lock-keyword-face)
-    (,io-comments-regexp . font-lock-comment-face)))
+  `((,io-special-re . font-lock-variable-name-face)
+    (,io-operators-re . font-lock-builtin-face)
+    (,io-boolean-re . font-lock-constant-face)
+    (,io-prototypes-re . font-lock-type-face)
+    (,io-messages-re . font-lock-keyword-face)
+    (,io-comments-re . font-lock-comment-face)))
 
 
 ;;
@@ -238,7 +246,6 @@
   "Hook run before file is saved. Deletes whitespace if `io-cleanup-whitespace' is non-nil."
   (when io-cleanup-whitespace
     (delete-trailing-whitespace)))
-
 
 ;;
 ;; Indentation
@@ -319,6 +326,7 @@
   "Returns `t' if current line is a comment."
   (save-excursion
     (backward-to-indentation 0)
+    ;; No support for multi line comments yet.
     (looking-at "\\(#\\|//\\)+\s*")))
 
 
@@ -350,16 +358,26 @@
   (modify-syntax-entry ?* ". 23" io-mode-syntax-table)
   (modify-syntax-entry ?\n "> b" io-mode-syntax-table)
 
-  (setq comment-start "#"
+  (setq comment-start "# "
+        comment-start-skip "# *"
         comment-end ""
+        comment-column 40
         comment-style 'indent)
 
-  ;; no tabs
-  (setq indent-tabs-mode nil)
+  ;; strings
+  (modify-syntax-entry ?\' "\"" io-mode-syntax-table)
+  (modify-syntax-entry ?\" "\"" io-mode-syntax-table)
 
   ;; indentation
-  (set (make-local-variable 'indent-line-function) 'io-indent-line)
-  (setq io-tab-width tab-width) ;; Just in case...
+  (make-local-variable 'indent-line-function)
+  (setq indent-line-function 'io-indent-line
+        io-tab-width tab-width ;; just in case...
+        indent-tabs-mode nil)  ;; tabs are evil..
+
+  ;; hideshow
+  (unless (assq 'io-mode hs-special-modes-alist)
+    (add-to-list 'hs-special-modes-alist
+                 '(io-mode "(" ")" "\\(?:#\\|/[*/]\\)")))
 
   ;; hooks
   (set (make-local-variable 'before-save-hook) 'io-before-save))
