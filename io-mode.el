@@ -33,7 +33,7 @@
 ;; In your shell:
 
 ;;     $ cd ~/.emacs.d/packges
-;;     $ hg clone http://bitbucket.com/bobry/io-mode
+;;     $ git clone git://github.com/superbobry/io-mode.git
 
 ;; In your emacs config:
 
@@ -49,11 +49,6 @@
 ;; http://renormalist.net/Renormalist/EmacsLanguageModeCreationTutorial
 ;;
 
-;;; TODO:
-
-;; - proper normilization (probably not an issue, since ReadLine is
-;;   available as an addon)
-;; - replace ugly regexp with (rx ) macros?
 
 ;;; Code:
 
@@ -183,13 +178,17 @@
 
 ;; Operators (not all of them are present in the Io core,
 ;; but you can still define them, if you need it)
+;; a) normal
 (defvar io-operators-re
   (regexp-opt
-   '("*" "/" "%" "^" "+" "-" "?" ">>" "++" "--"
-     "<<" ">" "<" "<=" ">=" "==" "!=" "&"
+   '("*" "/" "%" "^" "+" "-" ">>" "++" "--"
+     "<<" ">" "<" "<=" ">=" "==" "!=" "&" "@"
      "^" ".." "|" "&&" "||" "!=" "+=" "-="
      "*=" "/=" "<<=" ">>=" "&=" "|=" "%="
      "=" ":=" "<-" "<->" "->")))
+
+;; b) special
+(defvar io-operators-special-re "@\\{1,2\\}\\|?")
 
 ;; Booleans
 (defvar io-boolean-re "\\b\\(true\\|false\\|nil\\)\\b")
@@ -227,6 +226,7 @@
   ;; Note: order here matters!
   `((,io-special-re . font-lock-variable-name-face)
     (,io-operators-re . font-lock-builtin-face)
+    (,io-operators-special-re . font-lock-warning-face)
     (,io-boolean-re . font-lock-constant-face)
     (,io-prototypes-re . font-lock-type-face)
     (,io-messages-re . font-lock-keyword-face)
@@ -260,7 +260,7 @@
         (setq prev-indent (io-previous-indent)
               cur-indent (current-indentation))
 
-        ;; Shift one column to the left
+        ;; Shift one column to the left.
         (beginning-of-line)
         (insert-tab)
 
@@ -332,7 +332,7 @@
 
 ;;;###autoload
 (define-derived-mode io-mode fundamental-mode
-  "io-mode"
+  "Io"
   "Major mode for editing Io language..."
 
   (define-key io-mode-map (kbd "C-m") 'io-newline-and-indent)
