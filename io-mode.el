@@ -135,7 +135,7 @@
                     "\\([(,]\\)[\n\r\s]+\\|[\n\r\s]+\\()\\)" "\\1\\2"
                     ;; This should really be read bottom-up, start by removing
                     ;; all comments ...
-                    (replace-regexp-in-string io-comments-regexp "" str)))))
+                    (replace-regexp-in-string io-comments-re "" str)))))
 
 (defun io-repl ()
   "Launch an Io REPL using `io-command' as an inferior mode."
@@ -182,7 +182,7 @@
 (defvar io-operators-re
   (regexp-opt
    '("*" "/" "%" "^" "+" "-" ">>" "++" "--"
-     "<<" ">" "<" "<=" ">=" "==" "!=" "&" "@"
+     "<<" ">" "<" "<=" ">=" "==" "!=" "&"
      "^" ".." "|" "&&" "||" "!=" "+=" "-="
      "*=" "/=" "<<=" ">>=" "&=" "|=" "%="
      "=" ":=" "<-" "<->" "->")))
