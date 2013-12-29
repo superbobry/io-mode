@@ -35,7 +35,7 @@
 ;;     $ cd ~/.emacs.d/packges
 ;;     $ git clone git://github.com/superbobry/io-mode.git
 
-;; In your emacs config:
+;; In your Emacs config:
 
 ;;     (add-to-list 'load-path "~/.emacs.d/packages/io-mode")
 ;;     (require 'io-mode)
@@ -70,7 +70,7 @@
   :group 'languages)
 
 (defcustom io-debug-mode nil
-  "Whether to run in debug mode or not. Logs to `*Messages*'."
+  "Whether to run in debug mode or not.  Logs to `*Messages*'."
   :type 'boolean
   :group 'io)
 
@@ -106,7 +106,7 @@
       (apply 'message (append (list string) args))))
 
 (defmacro io-line-as-string ()
-  "Returns the current line as a string."
+  "Return the current line as a string."
   `(buffer-substring (point-at-bol) (point-at-eol)))
 
 ;;
@@ -378,9 +378,6 @@
   ;; hooks
   (set (make-local-variable 'before-save-hook) 'io-before-save))
 
-(provide 'io-mode)
-
-
 ;;
 ;; On Load
 ;;
@@ -388,5 +385,8 @@
 ;; Run io-mode for files ending in .io.
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.io$" . io-mode))
+
+
+(provide 'io-mode)
 
 ;;; io-mode.el ends here
