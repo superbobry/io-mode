@@ -23,7 +23,7 @@
 ;; along with this program; if not, write to the Free Software
 ;; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-;;; Commentary
+;;; Commentary:
 
 ;; No documentation is availible at the moment, but a nice and clean
 ;; README is soon to come.
@@ -388,3 +388,5 @@
 ;; Run io-mode for files ending in .io.
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.io$" . io-mode))
+
+;;; io-mode.el ends here
