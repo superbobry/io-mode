@@ -378,9 +378,6 @@
   ;; hooks
   (set (make-local-variable 'before-save-hook) 'io-before-save))
 
-(provide 'io-mode)
-
-
 ;;
 ;; On Load
 ;;
@@ -388,3 +385,5 @@
 ;; Run io-mode for files ending in .io.
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.io$" . io-mode))
+
+(provide 'io-mode)
