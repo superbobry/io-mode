@@ -5,7 +5,7 @@
 ;; Version: 20100405
 ;; Keywords: languages, io
 ;; Author: Sergei Lebedev <superbobry@gmail.com>
-;; URL: http://bitbucket.com/bobry/io-mode
+;; URL: https://github.com/superbobry/io-mode
 
 ;; This file is not part of GNU Emacs.
 
