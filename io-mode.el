@@ -53,7 +53,6 @@
 ;;; Code:
 
 (require 'comint)
-(require 'cl)
 (require 'font-lock)
 (require 'hideshow)
 (require 'newcomment)
@@ -108,66 +107,6 @@
 (defmacro io-line-as-string ()
   "Return the current line as a string."
   `(buffer-substring (point-at-bol) (point-at-eol)))
-
-;;
-;; REPL
-;;
-
-(defun io-normalize-sexp (str)
-  "Normalize a given Io code string, removing all newline characters."
-  ;; Oddly enough, Io interpreter doesn't allow newlines anywhere,
-  ;; including multiline strings and method calls, we need to make
-  ;; a flat string from a code block, before it's passed to the
-  ;; interpreter. Obviously, this isn't a good solution, since
-  ;;   a := """Cool multiline
-  ;;   string!"""
-  ;; would become
-  ;;   a := """Cool multiline string!"""
-  ;; ...
-  (replace-regexp-in-string
-   ;; ... and finally strip the remaining newlines.
-   "[\r\n]+" "; " (replace-regexp-in-string
-                   ;; ... then strip multiple whitespaces ...
-                   "\s+" " "
-                   (replace-regexp-in-string
-                    ;; ... then remove all newline characters near brackets
-                    ;; and comas ...
-                    "\\([(,]\\)[\n\r\s]+\\|[\n\r\s]+\\()\\)" "\\1\\2"
-                    ;; This should really be read bottom-up, start by removing
-                    ;; all comments ...
-                    (replace-regexp-in-string io-comments-re "" str)))))
-
-(defun io-repl ()
-  "Launch an Io REPL using `io-command' as an inferior mode."
-  (interactive)
-  (let ((io-repl-buffer (get-buffer "*Io*")))
-    (unless (comint-check-proc io-repl-buffer)
-      (setq io-repl-buffer
-            (apply 'make-comint "Io" io-command nil)))
-    (pop-to-buffer io-repl-buffer)))
-
-(defun io-repl-sexp (str)
-  "Send the expression to an Io REPL."
-  (interactive "sExpression: ")
-  (let ((io-repl-buffer (io-repl)))
-    (save-current-buffer
-      (set-buffer io-repl-buffer)
-      (comint-goto-process-mark)
-      (insert (io-normalize-sexp str))
-      ;; Probably ARTIFICIAL value should be made an option,
-      ;; like `io-repl-display-sent'.
-      (comint-send-input))))
-
-(defun io-repl-sregion (beg end)
-  "Send the region to an Io REPL."
-  (interactive "r")
-  (io-repl-sexp (buffer-substring beg end)))
-
-(defun io-repl-sbuffer ()
-  "Send the content of the buffer to an Io REPL."
-  (interactive)
-  (io-repl-sregion (point-min) (point-max)))
-
 
 ;;
 ;; Define Language Syntax
@@ -232,6 +171,64 @@
     (,io-messages-re . font-lock-keyword-face)
     (,io-comments-re . font-lock-comment-face)))
 
+;;
+;; REPL
+;;
+
+(defun io-normalize-sexp (str)
+  "Normalize a given Io code string, removing all newline characters."
+  ;; Oddly enough, Io interpreter doesn't allow newlines anywhere,
+  ;; including multiline strings and method calls, we need to make
+  ;; a flat string from a code block, before it's passed to the
+  ;; interpreter. Obviously, this isn't a good solution, since
+  ;;   a := """Cool multiline
+  ;;   string!"""
+  ;; would become
+  ;;   a := """Cool multiline string!"""
+  ;; ...
+  (replace-regexp-in-string
+   ;; ... and finally strip the remaining newlines.
+   "[\r\n]+" "; " (replace-regexp-in-string
+                   ;; ... then strip multiple whitespaces ...
+                   "\s+" " "
+                   (replace-regexp-in-string
+                    ;; ... then remove all newline characters near brackets
+                    ;; and comas ...
+                    "\\([(,]\\)[\n\r\s]+\\|[\n\r\s]+\\()\\)" "\\1\\2"
+                    ;; This should really be read bottom-up, start by removing
+                    ;; all comments ...
+                    (replace-regexp-in-string io-comments-re "" str)))))
+
+(defun io-repl ()
+  "Launch an Io REPL using `io-command' as an inferior mode."
+  (interactive)
+  (let ((io-repl-buffer (get-buffer "*Io*")))
+    (unless (comint-check-proc io-repl-buffer)
+      (setq io-repl-buffer
+            (apply 'make-comint "Io" io-command nil)))
+    (pop-to-buffer io-repl-buffer)))
+
+(defun io-repl-sexp (str)
+  "Send the expression to an Io REPL."
+  (interactive "sExpression: ")
+  (let ((io-repl-buffer (io-repl)))
+    (save-current-buffer
+      (set-buffer io-repl-buffer)
+      (comint-goto-process-mark)
+      (insert (io-normalize-sexp str))
+      ;; Probably ARTIFICIAL value should be made an option,
+      ;; like `io-repl-display-sent'.
+      (comint-send-input))))
+
+(defun io-repl-sregion (beg end)
+  "Send the region to an Io REPL."
+  (interactive "r")
+  (io-repl-sexp (buffer-substring beg end)))
+
+(defun io-repl-sbuffer ()
+  "Send the content of the buffer to an Io REPL."
+  (interactive)
+  (io-repl-sregion (point-min) (point-max)))
 
 ;;
 ;; Helper Functions
