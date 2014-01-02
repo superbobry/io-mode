@@ -282,7 +282,7 @@
 (defun io-line-empty-p ()
   "Is this line empty? Returns non-nil if so, nil if not."
   (or (bobp)
-      (string-match "^\\ s*$" (io-line-as-string))))
+      (string-match "^\\s-*$" (io-line-as-string))))
 
 (defun io-newline-and-indent ()
   "Inserts a newline and indents it to the same level as the previous line."
