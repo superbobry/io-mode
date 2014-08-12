@@ -78,11 +78,6 @@
   :type 'boolean
   :group 'io)
 
-(defcustom io-tab-width tab-width
-  "The tab width to use when indenting."
-  :type 'integer
-  :group 'io)
-
 (defcustom io-command "io"
   "The Io command used for evaluating code. Must be in your path."
   :type 'string
@@ -93,7 +88,6 @@
 
 (defvar io-mode-map (make-keymap)
   "Keymap for Io major mode.")
-
 
 ;;
 ;; Macros
@@ -179,6 +173,47 @@
     (,io-messages-re . font-lock-keyword-face)
     (,io-comments-re . font-lock-comment-face)))
 
+(defvar io-string-delimiter-re
+  (rx (group (or  "\"" "\"\"\""))))
+
+(defun io-syntax-count-quotes (quote-char &optional point limit)
+  "Count number of quotes around point (max is 3).
+QUOTE-CHAR is the quote char to count.  Optional argument POINT is
+the point where scan starts (defaults to current point), and LIMIT
+is used to limit the scan."
+  (let ((i 0))
+    (while (and (< i 3)
+                (or (not limit) (< (+ point i) limit))
+                (eq (char-after (+ point i)) quote-char))
+      (incf i))
+    i))
+
+(defun io-syntax-stringify ()
+  "Put `syntax-table' property correctly on single/triple quotes."
+  (let* ((num-quotes (length (match-string-no-properties 1)))
+         (ppss (prog2
+                   (backward-char num-quotes)
+                   (syntax-ppss)
+                 (forward-char num-quotes)))
+         (string-start (and (not (nth 4 ppss)) (nth 8 ppss)))
+         (quote-starting-pos (- (point) num-quotes))
+         (quote-ending-pos (point))
+         (num-closing-quotes
+          (and string-start
+               (io-syntax-count-quotes
+                (char-before) string-start quote-starting-pos))))
+    (cond ((and string-start (= num-closing-quotes 0))
+           nil)
+          ((not string-start)
+           (put-text-property quote-starting-pos (1+ quote-starting-pos)
+                              'syntax-table (string-to-syntax "|")))
+          ((= num-quotes num-closing-quotes)
+           (put-text-property (1- quote-ending-pos) quote-ending-pos
+                              'syntax-table (string-to-syntax "|")))
+          ((> num-quotes num-closing-quotes)
+           (put-text-property quote-starting-pos quote-ending-pos
+                              'syntax-table (string-to-syntax "|"))))))
+
 ;;
 ;; REPL
 ;;
@@ -247,89 +282,31 @@
   (when io-cleanup-whitespace
     (delete-trailing-whitespace)))
 
-
 ;;
 ;; Indentation
 ;;
 
+(defun io-in-string-p (point)
+  "Return non-nil if POINT is inside a string."
+  (save-excursion (fourth (syntax-ppss (point)))))
+
 (defun io-indent-line ()
   "Indent current line as Io source."
-  (interactive)
-
-  (if (= (point) (point-at-bol))
-      (insert-tab)
-    (save-excursion
-      (let ((prev-indent 0) (cur-indent 0))
-        ;; Figure out the indentation of the previous
-        ;; and current lines.
-        (setq prev-indent (io-previous-indent)
-              cur-indent (current-indentation))
-
-        ;; Shift one column to the left.
-        (beginning-of-line)
-        (insert-tab)
-
-        (when (= (point-at-bol) (point))
-          (forward-char io-tab-width))
-
-        ;; We're too far, remove all indentation.
-        (when (> (- (current-indentation) prev-indent) io-tab-width)
-          (backward-to-indentation 0)
-          (delete-region (point-at-bol) (point)))))))
-
-(defun io-previous-indent ()
-  "Returns the indentation level of the previous non-blank line."
   (save-excursion
-    (forward-line -1)
-    (if (bobp)
-        0
-      (progn
-        (while (io-line-empty-p) (forward-line -1))
-        (current-indentation)))))
-
-(defun io-line-empty-p ()
-  "Is this line empty? Returns non-nil if so, nil if not."
-  (or (bobp)
-      (string-match "^\\s-*$" (io-line-as-string))))
+    (back-to-indentation)
+    (let* ((syntax (syntax-ppss (point))))
+      (unless (io-in-string-p (line-beginning-position))
+        (delete-region (point) (line-beginning-position))
+        (insert-tab (- (length (remove-duplicates (mapcar 'line-number-at-pos (tenth syntax))))
+                       (if (save-excursion (> (first syntax) (first (syntax-ppss (1+ (point)))))) 1 0))))))
+  (when (> (save-excursion (back-to-indentation) (point)) (point))
+    (back-to-indentation)))
 
 (defun io-newline-and-indent ()
   "Inserts a newline and indents it to the same level as the previous line."
   (interactive)
-
-  ;; Remember the current line indentation level,
-  ;; insert a newline, and indent the newline to the same
-  ;; level as the previous line.
-  (let ((prev-indent (current-indentation)) (indent-next nil))
-    (newline)
-    (insert-tab (/ prev-indent io-tab-width)))
-
-  ;; Last line was a comment so this one should probably be,
-  ;; too. Makes it easy to write multi-line comments (like the
-  ;; one I'm writing right now).
-  (when (io-previous-line-is-comment)
-    ;; Using `match-string' is probably not obvious, but current
-    ;; implementation of `io-previous-is-comment' is using `looking-at',
-    ;; which modifies match-data variables.
-    (insert (match-string 0))))
-
-
-;;
-;; Comments
-;;
-
-(defun io-previous-line-is-comment ()
-  "Returns `t' if previous line is a comment."
-  (save-excursion
-    (forward-line -1)
-    (io-line-is-comment)))
-
-(defun io-line-is-comment ()
-  "Returns `t' if current line is a comment."
-  (save-excursion
-    (backward-to-indentation 0)
-    ;; No support for multi line comments yet.
-    (looking-at "\\(#\\|//\\)+\s*")))
-
+  (newline)
+  (indent-according-to-mode))
 
 ;;
 ;; Define Major Mode
@@ -340,7 +317,6 @@
   "Io"
   "Major mode for editing Io language..."
 
-  (define-key io-mode-map (kbd "C-m") 'io-newline-and-indent)
   (define-key io-mode-map (kbd "C-c <SPC>") 'io-repl)
   (define-key io-mode-map (kbd "C-c C-c") 'io-repl-sbuffer)
   (define-key io-mode-map (kbd "C-c C-r") 'io-repl-sregion)
@@ -359,6 +335,11 @@
   (modify-syntax-entry ?* ". 23" io-mode-syntax-table)
   (modify-syntax-entry ?\n "> b" io-mode-syntax-table)
 
+  (set (make-local-variable 'syntax-propertize-function)
+       (syntax-propertize-rules
+        (io-string-delimiter-re
+         (0 (ignore (io-syntax-stringify))))))
+
   (setq comment-start "# "
         comment-start-skip "# *"
         comment-end ""
@@ -372,8 +353,12 @@
   ;; indentation
   (make-local-variable 'indent-line-function)
   (setq indent-line-function 'io-indent-line
-        io-tab-width tab-width ;; just in case...
+        tab-width 4
         indent-tabs-mode nil)  ;; tabs are evil..
+
+  (set (make-local-variable 'electric-indent-chars)
+       (string-to-list "(){}[]\n"))
+  (electric-indent-mode t)
 
   ;; hideshow
   (unless (assq 'io-mode hs-special-modes-alist)
