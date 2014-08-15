@@ -89,7 +89,6 @@
 (defvar io-mode-map (make-keymap)
   "Keymap for Io major mode.")
 
-
 ;;
 ;; Macros
 ;;
@@ -177,6 +176,18 @@
 (defvar io-string-delimiter-re
   (rx (group (or  "\"" "\"\"\""))))
 
+(defun io-syntax-count-quotes (quote-char &optional point limit)
+  "Count number of quotes around point (max is 3).
+QUOTE-CHAR is the quote char to count.  Optional argument POINT is
+the point where scan starts (defaults to current point), and LIMIT
+is used to limit the scan."
+  (let ((i 0))
+    (while (and (< i 3)
+                (or (not limit) (< (+ point i) limit))
+                (eq (char-after (+ point i)) quote-char))
+      (incf i))
+    i))
+
 (defun io-syntax-stringify ()
   "Put `syntax-table' property correctly on single/triple quotes."
   (let* ((num-quotes (length (match-string-no-properties 1)))
@@ -189,7 +200,7 @@
          (quote-ending-pos (point))
          (num-closing-quotes
           (and string-start
-               (python-syntax-count-quotes
+               (io-syntax-count-quotes
                 (char-before) string-start quote-starting-pos))))
     (cond ((and string-start (= num-closing-quotes 0))
            nil)
@@ -270,7 +281,6 @@
   "Hook run before file is saved. Deletes whitespace if `io-cleanup-whitespace' is non-nil."
   (when io-cleanup-whitespace
     (delete-trailing-whitespace)))
-
 
 ;;
 ;; Indentation
