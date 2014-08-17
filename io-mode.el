@@ -297,7 +297,7 @@ is used to limit the scan."
     (let* ((syntax (syntax-ppss (point))))
       (unless (io-in-string-p (line-beginning-position))
         (delete-region (point) (line-beginning-position))
-        (insert-tab (- (length (remove-duplicates (mapcar 'line-number-at-pos (tenth syntax))))
+        (insert-tab (- (length (cl-remove-duplicates (mapcar 'line-number-at-pos (tenth syntax))))
                        (if (save-excursion (> (first syntax) (first (syntax-ppss (1+ (point)))))) 1 0))))))
   (when (> (save-excursion (back-to-indentation) (point)) (point))
     (back-to-indentation)))
