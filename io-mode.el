@@ -6,6 +6,7 @@
 ;; Keywords: languages, io
 ;; Author: Sergei Lebedev <superbobry@gmail.com>
 ;; URL: https://github.com/superbobry/io-mode
+;; Package-Requires: ((cl-lib "0.3") (emacs "24.1"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -56,6 +57,7 @@
 (require 'font-lock)
 (require 'hideshow)
 (require 'newcomment)
+(require 'cl-lib)
 
 ;;
 ;; Customizable Variables
@@ -295,7 +297,7 @@ is used to limit the scan."
   (save-excursion
     (back-to-indentation)
     (let* ((syntax (syntax-ppss (point)))
-           (desired-depth (- (length (cl-remove-duplicates (mapcar 'line-number-at-pos (tenth syntax))))
+           (desired-depth (- (length (cl-remove-duplicates (mapcar 'line-number-at-pos (cl-tenth syntax))))
                              (if (save-excursion (> (first syntax) (first (syntax-ppss (1+ (point)))))) 1 0))))
       (unless (or (io-in-string-p (line-beginning-position)) (eql (current-indentation) (* desired-depth tab-width)))
         (delete-region (point) (line-beginning-position))
@@ -359,7 +361,7 @@ is used to limit the scan."
 
   (set (make-local-variable 'electric-indent-chars)
        (string-to-list "(){}[]\n"))
-  (electric-indent-mode t)
+  (electric-indent-mode 1)
 
   ;; hideshow
   (unless (assq 'io-mode hs-special-modes-alist)
