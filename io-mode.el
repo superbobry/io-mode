@@ -80,6 +80,11 @@
   :type 'boolean
   :group 'io)
 
+(defcustom io-tab-width tab-width
+  "The tab width to use when indenting."
+  :type 'integer
+  :group 'io)
+
 (defcustom io-command "io"
   "The Io command used for evaluating code. Must be in your path."
   :type 'string
@@ -98,7 +103,7 @@
 (defun io-debug (string &rest args)
   "Print a message when in debug mode."
   (when io-debug-mode
-      (apply 'message (append (list string) args))))
+    (apply 'message (append (list string) args))))
 
 (defmacro io-line-as-string ()
   "Return the current line as a string."
@@ -176,7 +181,7 @@
     (,io-comments-re . font-lock-comment-face)))
 
 (defvar io-string-delimiter-re
-  (rx (group (or  "\"" "\"\"\""))))
+  (eval-when-compile (rx (group (or  "\"" "\"\"\"")))))
 
 (defun io-syntax-count-quotes (quote-char &optional point limit)
   "Count number of quotes around point (max is 3).
@@ -187,7 +192,7 @@ is used to limit the scan."
     (while (and (< i 3)
                 (or (not limit) (< (+ point i) limit))
                 (eq (char-after (+ point i)) quote-char))
-      (incf i))
+      (cl-incf i))
     i))
 
 (defun io-syntax-stringify ()
@@ -290,7 +295,7 @@ is used to limit the scan."
 
 (defun io-in-string-p (point)
   "Return non-nil if POINT is inside a string."
-  (save-excursion (fourth (syntax-ppss (point)))))
+  (save-excursion (cl-fourth (syntax-ppss (point)))))
 
 (defun io-indent-line ()
   "Indent current line as Io source."
@@ -298,11 +303,16 @@ is used to limit the scan."
     (back-to-indentation)
     (let* ((syntax (syntax-ppss (point)))
            (desired-depth (- (length (cl-remove-duplicates (mapcar 'line-number-at-pos (cl-tenth syntax))))
-                             (if (save-excursion (> (first syntax) (first (syntax-ppss (1+ (point)))))) 1 0))))
+                             (if (save-excursion (> (cl-first syntax) (cl-first (syntax-ppss (1+ (point))))))
+                                 1
+                               0))))
       (unless (or (io-in-string-p (line-beginning-position)) (eql (current-indentation) (* desired-depth tab-width)))
         (delete-region (point) (line-beginning-position))
         (insert-tab desired-depth))))
-  (when (> (save-excursion (back-to-indentation) (point)) (point))
+  (when (> (save-excursion
+             (back-to-indentation)
+             (point))
+           (point))
     (back-to-indentation)))
 
 (defun io-newline-and-indent ()
@@ -356,7 +366,7 @@ is used to limit the scan."
   ;; indentation
   (make-local-variable 'indent-line-function)
   (setq indent-line-function 'io-indent-line
-        tab-width 4
+        io-tab-width tab-width ;; just in case...
         indent-tabs-mode nil)  ;; tabs are evil..
 
   (set (make-local-variable 'electric-indent-chars)
