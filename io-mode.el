@@ -179,8 +179,9 @@
     (,io-messages-re . font-lock-keyword-face)
     (,io-comments-re . font-lock-comment-face)))
 
-(defvar io-string-delimiter-re
-  (rx (group (or  "\"" "\"\"\""))))
+(eval-and-compile
+  (defvar io-string-delimiter-re
+    (rx (group (or  "\"" "\"\"\"")))))
 
 (defun io-syntax-count-quotes (quote-char point limit)
   (let ((i 0))
