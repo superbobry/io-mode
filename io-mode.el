@@ -179,8 +179,17 @@
     (,io-messages-re . font-lock-keyword-face)
     (,io-comments-re . font-lock-comment-face)))
 
-(defvar io-string-delimiter-re
-  (rx (group (or  "\"" "\"\"\""))))
+(eval-and-compile
+  (defvar io-string-delimiter-re
+    (rx (group (or  "\"" "\"\"\"")))))
+
+(defun io-syntax-count-quotes (quote-char point limit)
+  (let ((i 0))
+    (while (and (< i 3)
+                (or (not limit) (< (+ point i) limit))
+                (eq (char-after (+ point i)) quote-char))
+      (setq i (1+ i)))
+    i))
 
 (defun io-syntax-stringify ()
   "Put `syntax-table' property correctly on single/triple quotes."
@@ -194,7 +203,7 @@
          (quote-ending-pos (point))
          (num-closing-quotes
           (and string-start
-               (python-syntax-count-quotes
+               (io-syntax-count-quotes
                 (char-before) string-start quote-starting-pos))))
     (cond ((and string-start (= num-closing-quotes 0))
            nil)
